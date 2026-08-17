@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkillPath · Graph Explorer</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand"><span class="brand-mark">S</span><div><strong>SkillPath</strong><small>Graph-powered career paths</small></div></div>
+    <span class="status" th:classappend="${connected} ? ' ok' : ' down'">
+        <span class="dot"></span><span th:text="${connected} ? 'CognoDB connected' : 'Database unavailable'"></span>
+    </span>
+</header>
+
+<main class="container">
+    <section class="hero">
+        <div>
+            <p class="eyebrow">LEARNING GRAPH EXPLORER</p>
+            <h1>Turn a career goal into a <span>learning path.</span></h1>
+            <p class="subtitle">SkillPath connects learners, skills, courses and roles to reveal the shortest useful route from what you know to what the role requires.</p>
+        </div>
+    </section>
+
+    <div th:if="${error}" class="alert" th:text="${error}"></div>
+
+    <section class="workspace">
+        <aside class="panel controls">
+            <div class="panel-title">Explore a path</div>
+            <form action="/recommendations" method="get">
+                <label for="learnerId">Learner</label>
+                <select id="learnerId" name="learnerId" required>
+                    <option value="" disabled th:selected="${learnerId == null}">Choose learner</option>
+                    <option th:each="learner : ${learners}" th:value="${learner.id}" th:text="${learner.name}" th:selected="${learner.id == learnerId}"></option>
+                </select>
+
+                <label for="roleId">Target role</label>
+                <select id="roleId" name="roleId" required>
+                    <option value="" disabled th:selected="${roleId == null}">Choose role</option>
+                    <option th:each="role : ${roles}" th:value="${role.id}" th:text="${role.name}" th:selected="${role.id == roleId}"></option>
+                </select>
+
+                <button type="submit">Find skill gaps <span>→</span></button>
+            </form>
+            <div class="graph-note">
+                <div class="mini-icon">◈</div>
+                <div><strong>Why graph?</strong><p>The answer depends on connected paths — learner → skill → prerequisite → course → target role.</p></div>
+            </div>
+        </aside>
+
+        <section class="results">
+            <div th:if="${recommendations == null}" class="empty-state">
+                <div class="empty-icon">◎</div>
+                <h2>Select a learner and role</h2>
+                <p>We'll traverse the graph to identify missing skills and relevant courses.</p>
+            </div>
+
+            <div th:if="${recommendations != null}">
+                <div class="summary-card">
+                    <div><span class="muted">ROLE READINESS</span><div class="big-number"><span th:text="${coverage[1]}">0</span><small> / <span th:text="${coverage[0]}">0</span> skills</small></div></div>
+                    <div class="progress"><div class="progress-fill" th:style="|width:${coverage[0] == 0 ? 0 : (coverage[1] * 100 / coverage[0])}%|"></div></div>
+                    <p th:text="${recommendations.isEmpty() ? 'Great match — no missing required skills found.' : recommendations.size() + ' skill gaps identified for this target role.'}"></p>
+                </div>
+
+                <div class="section-heading"><h2>Recommended next skills</h2><span th:text="${recommendations.size()} + ' gaps'"></span></div>
+                <div th:if="${recommendations.isEmpty()}" class="empty-state compact"><h2>You're ready 🎉</h2><p>No missing role skills were found in the current graph.</p></div>
+                <article class="recommendation" th:each="item : ${recommendations}">
+                    <div class="rec-main">
+                        <div class="skill-badge">SKILL</div>
+                        <h3 th:text="${item.skillName}"></h3>
+                        <span class="priority" th:text="${item.priority}"></span>
+                    </div>
+                    <div class="path"><span>Graph path</span><strong th:text="${#strings.listJoin(item.prerequisitePath, '  →  ')}"></strong></div>
+                    <div class="courses" th:if="${!item.courses.isEmpty()}"><span>Courses</span><div><span class="course" th:each="course : ${item.courses}" th:text="${course}"></span></div></div>
+                </article>
+
+                <button class="secondary" id="pathsButton" type="button">Show multi-hop learning paths</button>
+                <div id="paths" class="paths"></div>
+            </div>
+        </section>
+    </section>
+</main>
+<script th:inline="javascript">
+    const learnerId = /*[[${learnerId}]]*/ null;
+    const roleId = /*[[${roleId}]]*/ null;
+    const pathsButton = document.getElementById('pathsButton');
+    const paths = document.getElementById('paths');
+    if (pathsButton) {
+        pathsButton.addEventListener('click', async () => {
+            pathsButton.disabled = true;
+            pathsButton.textContent = 'Traversing graph…';
+            try {
+                const response = await fetch(`/api/paths?learnerId=${encodeURIComponent(learnerId)}&roleId=${encodeURIComponent(roleId)}`);
+                const data = await response.json();
+                paths.innerHTML = data.length ? data.map(p => `<div class="path-card">${p.map((s, i) => `<span>${s}</span>${i < p.length - 1 ? '<b>→</b>' : ''}`).join('')}</div>`).join('') : '<p class="muted">No prerequisite path was found in the current graph.</p>';
+            } catch (e) {
+                paths.innerHTML = '<p class="muted">Could not load graph paths.</p>';
+            } finally {
+                pathsButton.disabled = false;
+                pathsButton.textContent = 'Show multi-hop learning paths';
+            }
+        });
+    }
+</script>
+</body>
+</html>

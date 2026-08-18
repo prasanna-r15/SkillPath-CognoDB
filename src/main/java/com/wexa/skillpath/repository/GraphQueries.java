@@ -23,13 +23,14 @@ public final class GraphQueries {
             WITH needed,
                  collect(DISTINCT course.name)[0..3] AS courses
             OPTIONAL MATCH path=(needed)-[:PREREQUISITE*1..3]->(prereq:Skill)
-            WITH needed, courses,
-                 [node IN nodes(path) | node.name] AS pathNames
+            WITH needed, courses, path
+            ORDER BY length(path) ASC
+            WITH needed, courses, collect([node IN nodes(path) | node.name])[0] AS pathNames
             RETURN needed.id AS skillId,
                    needed.name AS skillName,
                    CASE WHEN needed.priority = 'HIGH' THEN 'High' ELSE 'Recommended' END AS priority,
                    courses,
-                   CASE WHEN size(pathNames) > 0 THEN pathNames ELSE [needed.name] END AS prerequisitePath
+                   CASE WHEN pathNames IS NOT NULL AND size(pathNames) > 0 THEN pathNames ELSE [needed.name] END AS prerequisitePath
             ORDER BY CASE WHEN needed.priority = 'HIGH' THEN 0 ELSE 1 END, needed.name
             """;
 
@@ -61,53 +62,4 @@ public final class GraphQueries {
             LIMIT 5
             """;
 
-    public static final String SEED = """
-            // Learners
-            UNWIND $learners AS learner
-            MERGE (l:Learner {id: learner.id})
-            SET l.name = learner.name
-
-            // Skills
-            WITH 1 AS keepAlive
-            UNWIND $skills AS skill
-            MERGE (s:Skill {id: skill.id})
-            SET s.name = skill.name, s.priority = skill.priority
-
-            // Courses
-            WITH 1 AS keepAlive
-            UNWIND $courses AS course
-            MERGE (c:Course {id: course.id})
-            SET c.name = course.name, c.level = course.level
-
-            // Roles
-            WITH 1 AS keepAlive
-            UNWIND $roles AS role
-            MERGE (r:Role {id: role.id})
-            SET r.name = role.name
-
-            // Learner -> Skill
-            WITH 1 AS keepAlive
-            UNWIND $learnerSkills AS item
-            MATCH (l:Learner {id: item.learnerId}), (s:Skill {id: item.skillId})
-            MERGE (l)-[:HAS_SKILL]->(s)
-
-            // Role -> Skill
-            WITH 1 AS keepAlive
-            UNWIND $roleSkills AS item
-            MATCH (r:Role {id: item.roleId}), (s:Skill {id: item.skillId})
-            MERGE (r)-[:REQUIRES]->(s)
-
-            // Course -> Skill
-            WITH 1 AS keepAlive
-            UNWIND $courseSkills AS item
-            MATCH (c:Course {id: item.courseId}), (s:Skill {id: item.skillId})
-            MERGE (c)-[:TEACHES]->(s)
-
-            // Skill -> prerequisite Skill
-            WITH 1 AS keepAlive
-            UNWIND $prerequisites AS item
-            MATCH (from:Skill {id: item.fromId}), (to:Skill {id: item.toId})
-            MERGE (from)-[:PREREQUISITE]->(to)
-            RETURN count(*) AS rows
-            """;
 }

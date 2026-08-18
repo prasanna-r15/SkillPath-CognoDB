@@ -144,14 +144,14 @@ gradle clean bootJar -x test
 
 The JAR will be under `build/libs/skillpath-1.0.0.jar`.
 
-Open `http://localhost:8080`.
+Open `http://localhost:8084`.
 
 ### 4. Load seed data
 
 After the application starts:
 
 ```bash
-curl -X POST http://localhost:8080/admin/seed
+curl -X POST http://localhost:8084/admin/seed
 ```
 
 Then refresh the UI.
